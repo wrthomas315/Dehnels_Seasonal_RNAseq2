@@ -1,0 +1,13 @@
+{
+	"n_targets": 44643,
+	"n_bootstraps": 0,
+	"n_processed": 15813561,
+	"n_pseudoaligned": 12633796,
+	"n_unique": 9275439,
+	"p_pseudoaligned": 79.9,
+	"p_unique": 58.7,
+	"kallisto_version": "0.46.2",
+	"index_version": 10,
+	"start_time": "Tue Jul 30 17:59:09 2024",
+	"call": "kallisto quant -i GCF_027595985.1_mSorAra2.pri_rna.idx -o HFS225 seq/HFS225_R1_001.trimmed.fastq.gz seq/HFS225_R2_001.trimmed.fastq.gz"
+}
