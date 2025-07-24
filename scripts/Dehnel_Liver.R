@@ -1135,6 +1135,67 @@ write.table(fgsea_hiberTidy2, file='~/data/Liver/DifferentialExp/Hibernation/fsg
 
 
 
+
+
+#Correlation between Gene expression and protein raw
+match_trans<-DESeq2::counts(dds_liv_all, normalized=TRUE)
+matched_LFQ <- read_table("~/Dehnels_Seasonal_RNAseq2/data/Liver/Proteomics/Compare2RNA/matched_LFQ_results.txt")
+str(matched_LFQ)
+
+#Prepare normalized RNA data
+rna_df <- as.data.frame(match_trans) %>%
+  rownames_to_column(var = "Gene") %>%
+  pivot_longer(-Gene, names_to = "Sample", values_to = "RNA")
+
+#Prepare protein data
+prot_df <- matched_LFQ %>%
+  pivot_longer(cols = starts_with("Stg"), names_to = "Sample", values_to = "Protein") %>%
+  dplyr::select(Gene, Sample, Protein)
+
+#Join RNA and Protein data by Gene + Sample
+merged_df <- inner_join(rna_df, prot_df, by = c("Gene", "Sample"))
+merged_df <- merged_df %>%
+  mutate(logRNA = log10(RNA + 1),
+         logProtein = log10(Protein))
+#Calculate Pearson correlation
+cor_results <- merged_df %>%
+  group_by(Gene) %>%
+  summarise(correlation = cor(logRNA, logProtein, use = "complete.obs", method = "pearson"),
+            .groups = "drop")
+#sort by correlation
+cor_results <- cor_results %>%
+  arrange(desc(correlation))
+
+# View top and bottom genes
+head(cor_results, 10)
+tail(cor_results, 10)
+sum(cor_results$correlation > 0, na.rm = TRUE)
+sum(cor_results$correlation < 0, na.rm = TRUE)
+#plot
+#hist
+ggplot(cor_results, aes(x = correlation, fill = correlation > 0)) +
+  geom_histogram(binwidth = 0.05, color = "white") +
+  scale_fill_manual(values = c("FALSE" = "red", "TRUE" = "blue"), 
+                    labels = c("Negative", "Positive"),
+                    name = "Correlation Sign") +
+  theme_minimal() +
+  labs(title = "RNA–Protein Correlation Across Genes", x = "Pearson r", y = "Gene Count")
+#scatter
+summary(lm(logProtein ~ logRNA, data = merged_df))
+ggplot(merged_df, aes(x = logRNA, y = logProtein)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  labs(
+    title = "Correlation of Transcript and Protein Abundance Across Samples",
+    x = "log10 Normalized RNA Counts",
+    y = "log10 LFQ Protein Abundance"
+  ) +
+  theme_bw(base_size = 14)
+
+
+
+
+
 #STEP11: WGCNA
 #OG vignette taken down, here is copy
 #https://bioinformaticsworkbook.org/dataAnalysis/RNA-Seq/RNA-SeqIntro/wgcna.html#gsc.tab=0
