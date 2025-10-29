@@ -23,8 +23,7 @@ library(TCseq)
 library(cluster)
 library(EnhancedVolcano)
 library(fgsea)
-library(DEGreport)
-library(lasso2)
+
 
 
 ## STEP1: Import quant files
@@ -65,7 +64,7 @@ mean(indiv_livmat$livermass[10:14])-mean(indiv_livmat$livermass[15:19])
 #Stage3vs4 shows significant size change
 t.test(indiv_livmat$livermass[10:14],indiv_livmat$livermass[15:19],)
 #plot
-livmassplot <-ggplot(indiv_livmat, aes(x = stagemass, y =  bodymass, fill = stagemass)) +
+livmassplot <-ggplot(indiv_livmat, aes(x = stagemass, y =  livermass, fill = stagemass)) +
   geom_boxplot(size=.4,show.legend = FALSE)+
   xlab("Stage")+
   ylab("Liver Mass (g)")+
@@ -107,7 +106,7 @@ livsampleDistMatrix <- as.matrix(livsampleDists)
 colnames(livsampleDistMatrix) <- NULL
 #make the heatmap
 feet<-pheatmap(livsampleDistMatrix, clustering_distance_rows=livsampleDists,
-               clustering_distance_cols = livsampleDists, color = colorRampPalette(rev(brewer.pal(n = 9, name ="Reds")))(255))
+         clustering_distance_cols = livsampleDists, color = colorRampPalette(rev(brewer.pal(n = 9, name ="Reds")))(255))
 ggsave("~/Supplements/Figures/Supplementary_Figure_Transcriptome_pheatmap.png", feet,width = 6, height = 5, dpi =300,)
 #make a heatmap of genes now
 livtopVarGenes <- head( order( rowVars( assay(vst_dds_liv_all) ), decreasing=TRUE ), 3336 )
@@ -115,64 +114,6 @@ heatmap.2( assay(vst_dds_liv_all)[ livtopVarGenes, ], scale="row",
            trace="none", dendrogram="column", 
            col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255),
 )
-
-
-
-
-
-## STEP3B: Likelihood ratio test and gene clustering
-dds_lrt <- DESeq(dds_liv_all, test="LRT", reduced = ~ 1)
-res_LRT <- results(dds_lrt)
-res_LRT_tb <- res_LRT %>%
-  data.frame() %>%
-  rownames_to_column(var="gene") %>% 
-  as_tibble()
-write.table(res_LRT_tb, file='~/Supplements/Data/Supplemental_Data_4.tsv', quote=FALSE, sep='\t')
-# Subset to return genes with padj < 0.05
-sigLRT_genes <- res_LRT_tb %>% 
-  filter(padj < 0.01)
-vst_mat <- assay(vst_dds_liv_all)
-cluster_vst <- vst_mat[sigLRT_genes$gene, ]
-meta<-liv_stages_organ_frame <- data.frame(
-  liv_full1 = liv_full1,
-  row.names = colnames(cs_liv.count.tsv$counts)
-)
-
-dim(cluster_vst)
-head(colnames(cluster_vst))
-clusters <- degPatterns(cluster_vst, metadata = meta, time = "liv_full1",minc = 150)
-write.table(clusters$df, file='~/Supplements/Data/Supplemental_Data_5.tsv', quote=FALSE, sep='\t')
-#figure
-degplot <- degPlotCluster(clusters$normalized, "liv_full1", color = NULL, min_genes = 150,
-                          process = FALSE, points = TRUE, boxes = "FALSE", smooth = TRUE,
-                          lines = TRUE, facet = TRUE, cluster_column = "cluster")
-degplot2<-degplot + 
-  scale_color_manual(values = "black") +  # dots black
-  stat_smooth(method = "loess", se = FALSE, color = "blue") +
-  theme_bw(base_size = 14) +
-  theme(
-    axis.title = element_blank(),
-    axis.text = element_blank(),
-    axis.ticks = element_blank(),
-    legend.position = "none",
-    strip.text = element_blank(),
-    panel.grid.major = element_line(),
-    panel.grid.minor = element_blank(),
-    plot.title = element_blank()
-  )
-ggsave("~/Supplements/Figures/degplot2.png", degplot2,width = 10, height = 5, dpi =300,)
-#
-cluster_groups <- clusters$df
-group6 <- clusters$df %>%
-  filter(cluster == 6)
-group8 <- clusters$df %>%
-  filter(cluster == 8)
-group1 <- clusters$df %>%
-  filter(cluster == 1)
-group4 <- clusters$df %>%
-  filter(cluster == 4)
-
-
 
 
 
@@ -210,20 +151,20 @@ hres <- Stage3vsStage1_DESeq %>%
   group_by(Gene) %>% 
   summarize(stat=mean(stat))
 hranks <- deframe(hres)
-paths <- gmtPathways("~/data/000_miscFiles/c2.cp.kegg.v2023.1.Hs.symbols.gmt.txt")
-paths$KEGG_OXIDATIVE_PHOSPHORYLATION
+tibble(gene = "NDUFB10", rank = hranks["NDUFB10"])
 fgsea_Stage3vsStage1_DESeq <- fgsea(pathways=gmtPathways("~/data/refs/c2.cp.kegg.v2023.1.Hs.symbols.gmt.txt"), hranks) %>% 
   as_tibble() %>% 
   arrange(padj)
+paths <- gmtPathways("~/data/refs/c2.cp.kegg.v2023.1.Hs.symbols.gmt.txt")
 fgsea_Stage3vsStage1_DESeqTidy <- fgsea_Stage3vsStage1_DESeq %>%
   as_tibble() %>%
   arrange(desc(NES))
 supp_fgsea_a1<-plotEnrichment(paths[["KEGG_OXIDATIVE_PHOSPHORYLATION"]],
-                              hranks) + labs(title="KEGG_OXIDATIVE_PHOSPHORYLATION")
+               hranks) + labs(title="KEGG_OXIDATIVE_PHOSPHORYLATION")
 supp_fgsea_a2<-plotEnrichment(paths[["KEGG_GLYCOLYSIS_GLUCONEOGENESIS"]],
-                              hranks) + labs(title="KEGG_GLYCOLYSIS_GLUCONEOGENESIS")
+               hranks) + labs(title="KEGG_GLYCOLYSIS_GLUCONEOGENESIS")
 supp_fgsea_a3<-plotEnrichment(paths[["KEGG_FATTY_ACID_METABOLISM"]],
-                              hranks) + labs(title="KEGG_FATTY_ACID_METABOLISM")
+               hranks) + labs(title="KEGG_FATTY_ACID_METABOLISM")
 # Show in a nice table:
 fgsea_Stage3vsStage1_DESeqTidy %>% 
   dplyr::select(-leadingEdge, -ES) %>% 
@@ -239,14 +180,14 @@ livexp_Stage3vs1_fsgea
 ggsave("~/data/Liver/DifferentialExp/Stage3vs1/fsgea_SumvsWinter.png", livexp_Stage3vs1_fsgea,width = 7.1, height = 6, dpi =300,)
 fgsea_Stage3vsStage1_DESeqTidy2 <- apply(fgsea_Stage3vsStage1_DESeqTidy,2,as.character)
 write.table(fgsea_Stage3vsStage1_DESeqTidy2, file='~/data/Liver/DifferentialExp/Stage3vs1/fsgea_liverStage3vs1Tidy.tsv', quote=FALSE, sep='\t')
-#plot
-fsgea1 <- read_delim("ShrewProjects/github/Dehnels_Seasonal_RNAseq2/data/Liver/DifferentialExp/Stage3vs1/fsgea_liverStage3vs1Tidy.tsv",
-                     delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+fsgea1 <- read_delim("~/data/Liver/DifferentialExp/Stage3vs1/fsgea_liverStage3vs1Tidy.tsv",
+                    delim = "\t", escape_double = FALSE, trim_ws = TRUE)
 fsgea1 <- fsgea1 %>%
   mutate(
-    #to r styling
+    # Remove any prefix like "83\t" and keep only the R-style c(...) string
     leadingEdge_clean = str_extract(leadingEdge, "c\\(.*\\)"),
-    #parse
+    
+    # Parse the cleaned R-style vector string into an actual R list
     leadingEdge_list = map(leadingEdge_clean, ~ tryCatch(eval(parse(text = .x)), error = function(e) NA))
   )
 topPathwaysUp <- fsgea1 %>%
@@ -264,14 +205,19 @@ topPathwaysDown <- fsgea1 %>%
 topPathways <- c(topPathwaysUp, rev(topPathwaysDown))
 plotGseaTable(paths[topPathways], hranks, fsgea1, 
               gseaParam=0.5)
-#to pdf
+# Open PDF device
 pdf("~/Supplements/Figures/Supplementary_Figure_GSEA.pdf", width = 8.5, height = 11)
-grid.arrange(supp_fgsea_a1, supp_fgsea_a1, supp_fgsea_a1, ncol = 1)
+
+# First page: 3 enrichment plots
+grid.arrange(supp_fgsea_a1, supp_fgsea_a2, supp_fgsea_a3, ncol = 1)
+
+# New page for the table
 grid.newpage()
 grid.table(plotGseaTable(paths[topPathways], hranks, fsgea1, 
                          gseaParam=0.5))
-dev.off()
 
+# Close the device
+dev.off()
 
 #Stage 4 vs 3
 Stage4vsStage3_DESeq <- read_delim("~/data/Liver/DifferentialExp/Stage4vs3/Stage4vsStage3_DESeq.tsv", 
@@ -371,7 +317,7 @@ livexp_Stage4vs3_fsgeaPROT <-ggplot(subset(fgsea_Stage4vsStage3_PROTTidy,padj<0.
 livexp_Stage4vs3_fsgeaPROT
 ggsave("~/data/Liver/Proteomics/SpringVsWinter/fsgea_SpringvsWinter_prot.png", livexp_Stage4vs3_fsgeaPROT,width = 6.5, height = 6, dpi =300,)
 fgsea_Stage4vsStage3_PROTTidy2 <- apply(fgsea_Stage4vsStage3_PROTTidy,2,as.character)
-write.table(fgsea_Stage4vsStage3_PROTTidy2, file='/Users/bill/ShrewProjects/Dehnels_Seasonal_RNAseq3/data/Liver/Proteomics/SpringVsWinter/fsgea_liverStage4vs3Tidy_prot.tsv', quote=FALSE, sep='\t')
+write.table(fgsea_Stage4vsStage3_PROTTidy2, file='~/data/Liver/Proteomics/SpringVsWinter/fsgea_liverStage4vs3Tidy_prot.tsv', quote=FALSE, sep='\t')
 
 
 
@@ -409,8 +355,30 @@ plot3_3vs1 <- ggplot(PT_combo_3vs1, aes(dir_prot,dir_trans))+
   geom_smooth(method = "lm") +
   labs(x="Difference Proteomics", y="LFC Transcriptomics")+geom_hline(yintercept=0)+geom_vline(xintercept=0)
 summary(lm(dir_prot ~ dir_trans, data = PT_combo_3vs1))
-plot3_3vs1
-ggsave("~/data/Liver/Corr/Stage3vs1corr.png", plot3_3vs1,width = 9.2, height = 5, dpi =300,)
+PT_combo_3vs1$plot_color <- with(PT_combo_3vs1, ifelse(
+  sig_trans < 0.05 & sig_prot > -log10(0.05), "#CA9961",
+  ifelse(sig_trans < 0.05, "#FD8C3E",
+         ifelse(sig_prot >-log10(0.05), "#009284", "black"))
+))
+PT_combo_3vs1$plot_color <- factor(
+  PT_combo_3vs1$plot_color,
+  levels = c("black", "#FD8C3E", "#009284", "#CA9961")
+)
+PT_combo_3vs1 <- PT_combo_3vs1[order(PT_combo_3vs1$plot_color), ]
+plot3_3vs1 <- ggplot(PT_combo_3vs1, aes(dir_prot, dir_trans)) +
+  geom_point(size = 4.5,aes(color = plot_color)) +
+  scale_color_identity()+
+  geom_smooth(method = "lm") +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  labs(x = NULL, y = NULL) + 
+  theme_bw() +
+  theme(
+    axis.text = element_blank(),
+    panel.grid.major = element_line(linewidth = 2.5),
+    panel.grid.minor = element_blank()
+  )
+ggsave("~/data/Liver/DifferentialExp/Stage3vs1corr.png", plot3_3vs1,width = 12.5, height = 10, dpi =300,)
 
 #Stage 4 vs 3
 #overlapping genes
@@ -443,8 +411,31 @@ plot3_4vs3 <- ggplot(PT_combo_4vs3, aes(dir_prot,dir_trans))+
   geom_smooth(method = "lm") +
   labs(x="Difference Proteomics", y="LFC Transcriptomics")+geom_hline(yintercept=0)+geom_vline(xintercept=0)
 summary(lm(dir_prot ~ dir_trans, data = PT_combo_4vs3))
+PT_combo_4vs3$plot_color <- with(PT_combo_4vs3, ifelse(
+  sig_trans < 0.05 & sig_prot > -log10(0.05), "#CA9961",
+  ifelse(sig_trans < 0.05, "#FD8C3E",
+         ifelse(sig_prot >-log10(0.05), "#009284", "black"))
+))
+PT_combo_4vs3$plot_color <- factor(
+  PT_combo_4vs3$plot_color,
+  levels = c("black", "#FD8C3E", "#009284", "#CA9961")
+)
+PT_combo_4vs3 <- PT_combo_4vs3[order(PT_combo_4vs3$plot_color), ]
+plot3_4vs3 <- ggplot(PT_combo_4vs3, aes(dir_prot, dir_trans)) +
+  geom_point(size = 4.5,aes(color = plot_color)) +
+  scale_color_identity()+
+  geom_smooth(method = "lm") +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  labs(x = NULL, y = NULL) + 
+  theme_bw() +
+  theme(
+    axis.text = element_blank(),
+    panel.grid.major = element_line(linewidth = 2.5),
+    panel.grid.minor = element_blank()
+  )
 plot3_4vs3
-ggsave("~/data/Liver/Corr/Stage4vs3corr.png", plot3_4vs3,width = 9.15, height = 5, dpi =300,)
+ggsave("~/data/Liver/DifferentialExp/Stage4vs3corr.png", plot3_4vs3,width = 12.5, height = 10, dpi =300,)
 
 #Step 8 : Idenfity interesting overlapped genes
 #Stage 3 vs 1 NDUFS
@@ -581,7 +572,7 @@ Eh1<-EnhancedVolcano(liv13resX,
                      x = 'log2FoldChange',
                      y = 'padj',
                      shapeCustom = keyvals.shape,
-                     selectLab = c(top_combined$OLgene),
+                     selectLab = top_combined$OLgene,
                      pCutoff = .05,
                      FCcutoff = 15,
                      colCustom = keyvals,
@@ -592,8 +583,40 @@ Eh1<-EnhancedVolcano(liv13resX,
                      drawConnectors = TRUE,
                      gridlines.major  = FALSE,
                      widthConnectors = 0.5)
+Eh1<-EnhancedVolcano(
+  liv13resX,
+  lab = rownames(liv13resX),
+  x = 'log2FoldChange',
+  y = 'padj',
+  xlab = "",
+  ylab = "",
+  xlim = c(-4, 4),
+  ylim = c(0, 10),
+  shapeCustom = keyvals.shape,
+  selectLab = top_combined$OLgene,
+  pCutoff = 0.00000000000001,
+  FCcutoff = 15,
+  colCustom = keyvals,
+  colAlpha = 0.5,
+  boxedLabels = TRUE,
+  pointSize = 12.0,
+  labSize = 12,
+  drawConnectors = TRUE,
+  widthConnectors = 0.8,
+  legendPosition = 'none',
+  gridlines.minor = FALSE,
+  title = NULL,
+  subtitle = NULL,
+  caption = NULL,
+  hline = 0.05,
+  hlineWidth = 3
+)+theme(
+  axis.text.x = element_blank(),
+  axis.text.y = element_blank(),
+  panel.grid.major = element_line(linewidth = 2.5)
+)
 Eh1
-ggsave("~/data/Liver/Volcano/Stage3vs1VOLC_trans.png", Eh1,width = 9.8, height = 8, dpi =300,)
+ggsave("~/data/Liver/DifferentialExp/Stage3vs1VOLC_trans.png", Eh1,width = 12.5, height = 10, dpi =300,)
 #Stage 3 vs 1 proteomics
 ###volcano
 PT_combo_3vs1X <- PT_combo_3vs1
@@ -661,9 +684,39 @@ Eh2<-EnhancedVolcano(PT_combo_3vs1X,
                 legendPosition = 'none',
                 drawConnectors = TRUE,
                 gridlines.major  = FALSE,
-                widthConnectors = 0.5)
+                widthConnectors = 0.5,)
+Eh2<-EnhancedVolcano(PT_combo_3vs1X,
+                     lab = PT_combo_3vs1X$OLgene,
+                     xlim=c(-3 ,3),
+                     ylim=c(0,3),
+                     x = 'dir_prot',
+                     y = 'sig_prot',
+                     xlab = "",
+                     ylab = "",
+                     shapeCustom = keyvals.shape,
+                     selectLab = c(top_combined$OLgene),
+                     FCcutoff = 15,
+                     colCustom = keyvals,
+                     colAlpha = .5,
+                     boxedLabels = TRUE,
+                     pointSize = 12.0,
+                     labSize = 12,
+                     drawConnectors = TRUE,
+                     gridlines.minor  = FALSE,
+                     widthConnectors = 0.8,
+                     legendPosition = 'none',
+                     title = NULL,
+                     subtitle = NULL,
+                     caption = NULL,
+                     hline = 0.05,
+                     hlineWidth = 3)+
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major = element_line(linewidth = 2.5)
+  )
 Eh2
-ggsave("~/data/Liver/Volcano/Stage3vs1VOLC_prot.png", Eh2,width = 9.46, height = 8, dpi =300,)
+ggsave("~/data/Liver/DifferentialExp/Stage3vs1VOLC_prot.png", Eh2,width = 12.5, height = 10, dpi =300,)
 #stage 3 vs 4 transcriptomics
 #make new copy of data
 liv34resX <- results(dds_liv_all, contrast = c("liv_full1","Stage4","Stage3"))
@@ -722,20 +775,33 @@ Eh3<-EnhancedVolcano(liv34resX,
                 ylim=c(0,10),
                 x = 'log2FoldChange',
                 y = 'padj',
+                xlab = "",
+                ylab = "",
                 shapeCustom = keyvals.shape,
                 selectLab = c(top_combined$OLgene),
-                pCutoff = .05,
+                pCutoff = 0.00000000000001,
                 FCcutoff = 15,
                 colCustom = keyvals,
                 colAlpha = .5,
                 boxedLabels = TRUE,
-                pointSize = 4.0,
-                legendPosition = 'none',
+                pointSize = 12.0,
+                labSize = 12,
                 drawConnectors = TRUE,
-                gridlines.major  = FALSE,
-                widthConnectors = 0.5)
+                gridlines.minor  = FALSE,
+                widthConnectors = 0.8,
+                legendPosition = 'none',
+                title = NULL,
+                subtitle = NULL,
+                caption = NULL,
+                hline = 0.05,
+                hlineWidth = 3)+
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major = element_line(linewidth = 2.5)
+  )
 Eh3
-ggsave("~/data/Liver/Volcano/Stage4vs3VOLC_trans.png", Eh3,width = 9.8, height = 8, dpi =300,)
+ggsave("~/data/Liver/DifferentialExp/Stage4vs3VOLC_trans.png", Eh3,width = 12.5, height = 10, dpi =300,)
 
 #stage 3 vs 4 proteomics
 PT_combo_4vs3X <- PT_combo_4vs3
@@ -774,26 +840,50 @@ names(keyvals)[keyvals == 'red'] <- 'DownRegulated'
 names(keyvals)[keyvals == 'blue'] <- 'Upregulated High Effect'
 names(keyvals)[keyvals == 'blue'] <- 'Upregulated'
 names(keyvals)[keyvals == 'red'] <- 'Downregulated High Effect'
+top_up <- fourthree_overlap %>%
+  filter(dir_prot > 0) %>%
+  arrange(sig_prot) %>%
+  slice_head(n = 10)
+top_down <- fourthree_overlap %>%
+  filter(dir_prot < 0) %>%
+  arrange(sig_prot) %>%
+  slice_head(n = 10)
+top_combined <- bind_rows(
+  top_up %>% mutate(direction = "up"),
+  top_down %>% mutate(direction = "down")
+)
 Eh4<-EnhancedVolcano(PT_combo_4vs3X,
                 lab = PT_combo_4vs3X$OLgene,
                 xlim=c(-3 ,3),
                 ylim=c(0,3),
                 x = 'dir_prot',
                 y = 'sig_prot',
+                xlab = "",
+                ylab = "",
                 shapeCustom = keyvals.shape,
                 selectLab = c(top_combined$OLgene),
-                pCutoff = .05,
                 FCcutoff = 15,
                 colCustom = keyvals,
                 colAlpha = .5,
                 boxedLabels = TRUE,
-                pointSize = 4.0,
+                pointSize = 12.0,
+                labSize = 12,
                 legendPosition = 'none',
                 drawConnectors = TRUE,
-                gridlines.major  = FALSE,
-                widthConnectors = 0.5)
+                widthConnectors = 0.8,
+                gridlines.minor  = FALSE,
+                title = NULL,
+                subtitle = NULL,
+                caption = NULL,
+                hline = 0.05,
+                hlineWidth = 3)+
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.major = element_line(linewidth = 2.5)
+  )
 Eh4
-ggsave("~/data/Liver/Volcano/Stage4vs3VOLC_prot.png", Eh4,width = 9.46, height = 8, dpi =300,)
+ggsave("~/data/Liver/DifferentialExp/Stage4vs3VOLC_prot.png", Eh4,width = 12.5, height = 10, dpi =300,)
 
 
 
@@ -1084,118 +1174,6 @@ ggsave("~/data/Liver/DifferentialExp/Stage3vs1/Figure2plots/ATP5MG_plot.png", AT
 
 
 
-#Revision hamster comparison
-library(readxl)
-hiber_exp <- read_excel("~/data/Liver/DifferentialExp/Hibernation/hiber_exp.xlsx")
-hiber_exp <- hiber_exp %>%
-  mutate(GeneName = toupper(GeneName))
-hiber_up<-hiber_exp %>%
-  filter(FDR < 0.05, logFC < 0) %>%
-  pull(GeneName)
-hiber_down<-hiber_exp %>%
-  filter(FDR < 0.05, logFC > 0) %>%
-  pull(GeneName)
-rownames(liv13up)
-intersect(rownames(liv13up), hiber_up)
-intersect(rownames(liv13down), hiber_up)
-intersect(rownames(liv13up), hiber_down)
-intersect(rownames(liv13down), hiber_down)
-overlap_hiber <- list(HibernationUp = hiber_up, HibernationDown=hiber_down, DehnelUp=rownames(liv13up),DehnelDown=rownames(liv13down))
-upset_overlap_hiber <- fromList(overlap_hiber)
-hiber_upset <- upset(upset_overlap_hiber,nsets = 4,order.by = "freq")
-ggsave("~/Dehnels_Seasonal_RNAseq2/data/Liver/DifferentialExp/Hibernation/upset_hibernation.png", hiber_upset, width = 10, height = 4, dpi =300,)
-#fgsea
-hiberres <- hiber_exp %>% 
-  dplyr::select(GeneName, logFC) %>% 
-  na.omit() %>% 
-  distinct() %>% 
-  group_by(GeneName) %>% 
-  summarize(stat=mean(logFC))
-hiberranks <- deframe(hiberres)
-fgsea_hiber <- fgsea(pathways=gmtPathways("~/data/refs/c2.cp.kegg.v2023.1.Hs.symbols.gmt.txt"), hiberranks) %>% 
-  as_tibble() %>% 
-  arrange(padj)
-fgsea_hiberTidy <- fgsea_hiber %>%
-  as_tibble() %>%
-  arrange(desc(NES))
-# Show in a nice table:
-fgsea_hiberTidy %>% 
-  dplyr::select(-leadingEdge, -ES) %>% 
-  arrange(padj) %>% 
-  DT::datatable()
-plot_fgsea_hiber <-ggplot(subset(fgsea_hiberTidy,padj<0.05), aes(reorder(pathway, NES), NES)) +
-  geom_col(aes(fill=NES>0)) +
-  coord_flip() +
-  labs(x="KEGGPathwayHibernation", y="Normalized Enrichment Score") + 
-  scale_fill_manual(values =  c("red", "blue"))+
-  theme_bw()
-ggsave("~/data/Liver/DifferentialExp/Hibernation/fsgea_hibernation.png", plot_fgsea_hiber,width = 10, height = 6, dpi =300,)
-fgsea_hiberTidy2 <- apply(fgsea_hiberTidy,2,as.character)
-write.table(fgsea_hiberTidy2, file='~/data/Liver/DifferentialExp/Hibernation/fsgea_hibernation.tsv', quote=FALSE, sep='\t')
-
-
-
-
-
-#Correlation between Gene expression and protein raw
-match_trans<-DESeq2::counts(dds_liv_all, normalized=TRUE)
-matched_LFQ <- read_table("~/Dehnels_Seasonal_RNAseq2/data/Liver/Proteomics/Compare2RNA/matched_LFQ_results.txt")
-str(matched_LFQ)
-
-#Prepare normalized RNA data
-rna_df <- as.data.frame(match_trans) %>%
-  rownames_to_column(var = "Gene") %>%
-  pivot_longer(-Gene, names_to = "Sample", values_to = "RNA")
-
-#Prepare protein data
-prot_df <- matched_LFQ %>%
-  pivot_longer(cols = starts_with("Stg"), names_to = "Sample", values_to = "Protein") %>%
-  dplyr::select(Gene, Sample, Protein)
-
-#Join RNA and Protein data by Gene + Sample
-merged_df <- inner_join(rna_df, prot_df, by = c("Gene", "Sample"))
-merged_df <- merged_df %>%
-  mutate(logRNA = log10(RNA + 1),
-         logProtein = log10(Protein))
-#Calculate Pearson correlation
-cor_results <- merged_df %>%
-  group_by(Gene) %>%
-  summarise(correlation = cor(logRNA, logProtein, use = "complete.obs", method = "pearson"),
-            .groups = "drop")
-#sort by correlation
-cor_results <- cor_results %>%
-  arrange(desc(correlation))
-
-# View top and bottom genes
-head(cor_results, 10)
-tail(cor_results, 10)
-sum(cor_results$correlation > 0, na.rm = TRUE)
-sum(cor_results$correlation < 0, na.rm = TRUE)
-#plot
-#hist
-ggplot(cor_results, aes(x = correlation, fill = correlation > 0)) +
-  geom_histogram(binwidth = 0.05, color = "white") +
-  scale_fill_manual(values = c("FALSE" = "red", "TRUE" = "blue"), 
-                    labels = c("Negative", "Positive"),
-                    name = "Correlation Sign") +
-  theme_minimal() +
-  labs(title = "RNA–Protein Correlation Across Genes", x = "Pearson r", y = "Gene Count")
-#scatter
-summary(lm(logProtein ~ logRNA, data = merged_df))
-ggplot(merged_df, aes(x = logRNA, y = logProtein)) +
-  geom_point(alpha = 0.4) +
-  geom_smooth(method = "lm", se = TRUE, color = "blue") +
-  labs(
-    title = "Correlation of Transcript and Protein Abundance Across Samples",
-    x = "log10 Normalized RNA Counts",
-    y = "log10 LFQ Protein Abundance"
-  ) +
-  theme_bw(base_size = 14)
-
-
-
-
-
 #STEP11: WGCNA
 #OG vignette taken down, here is copy
 #https://bioinformaticsworkbook.org/dataAnalysis/RNA-Seq/RNA-SeqIntro/wgcna.html#gsc.tab=0
@@ -1436,7 +1414,7 @@ for (mod in 1:ncol(geneModuleMembership))
 # Order the genes in the geneInfo variable first by module color, then by geneTraitSignificance
 geneOrder = order(geneInfo0$moduleColor, -abs(geneInfo0$GS.bodymass2));
 geneInfo = geneInfo0[geneOrder, ]
-write.csv(geneInfo, file = "~/data/Liver/WGCNA/liv_geneInfo.csv")
+write.csv(geneInfo, file = "~/data/Liver/WGCNA//liv_geneInfo.csv")
 # Select modules
 modules = c("red");
 # Select module probes
@@ -1462,3 +1440,272 @@ sub_livgeneInfo<-subset(liv_geneInfo,moduleColor== "red")
 sub_livgeneInfo
 write.table(sub_livgeneInfoS, file='~/ShrewProjects/Dehnels_Seasonal_RNAseq2/data/Liver/WGCNA/red_sig.tsv', quote=FALSE, sep='\t')
 write.table(sub_livgeneInfo, file='~/ShrewProjects/Dehnels_Seasonal_RNAseq2/data/Liver/WGCNA/red.tsv', quote=FALSE, sep='\t')
+
+
+
+
+
+#Revision Likelihood ratio test
+dds_lrt <- DESeq(dds_liv_all, test="LRT", reduced = ~ 1)
+res_LRT <- results(dds_lrt)
+res_LRT_tb <- res_LRT %>%
+  data.frame() %>%
+  rownames_to_column(var="gene") %>% 
+  as_tibble()
+write.table(res_LRT_tb, file='~/Supplements/Data/Supplemental_Data_4.tsv', quote=FALSE, sep='\t')
+# Subset to return genes with padj < 0.05
+sigLRT_genes <- res_LRT_tb %>% 
+  filter(padj < 0.01)
+vst_mat <- assay(vst_dds_liv_all)
+cluster_vst <- vst_mat[sigLRT_genes$gene, ]
+library(DEGreport)
+library(lasso2)
+meta<-liv_stages_organ_frame <- data.frame(
+  liv_full1 = liv_full1,
+  row.names = colnames(cs_liv.count.tsv$counts)
+)
+
+dim(cluster_vst)
+head(colnames(cluster_vst))
+clusters <- degPatterns(cluster_vst, metadata = meta, time = "liv_full1",minc = 150)
+write.table(clusters$df, file='~/Supplements/Data/Supplemental_Data_5.tsv', quote=FALSE, sep='\t')
+#figure
+degplot <- degPlotCluster(clusters$normalized, "liv_full1", color = NULL, min_genes = 150,
+               process = FALSE, points = TRUE, boxes = "FALSE", smooth = TRUE,
+               lines = TRUE, facet = TRUE, cluster_column = "cluster")
+degplot2<-degplot + 
+  scale_color_manual(values = "black") +  # dots black
+  stat_smooth(method = "loess", se = FALSE, color = "blue") +  # smooth in blue
+  theme_bw(base_size = 14) +
+  theme(
+    axis.title = element_blank(),         # remove axis titles
+    axis.text = element_blank(),          # remove axis text
+    axis.ticks = element_blank(),         # remove axis ticks
+    legend.position = "none",             # remove legend
+    strip.text = element_blank(),         # remove facet titles
+    panel.grid.major = element_line(),    # show major gridlines
+    panel.grid.minor = element_blank(),   # remove minor gridlines
+    plot.title = element_blank()
+  )
+ggsave("~/Supplements/Figures/degplot2.png", degplot2,width = 10, height = 5, dpi =300,)
+#
+cluster_groups <- clusters$df
+group6 <- clusters$df %>%
+  filter(cluster == 6)
+group8 <- clusters$df %>%
+  filter(cluster == 8)
+group1 <- clusters$df %>%
+  filter(cluster == 1)
+group4 <- clusters$df %>%
+  filter(cluster == 4)
+#group overlap with wgcna clusters
+#import WGCNA again
+liv_geneInfo <- read_csv("ShrewProjects/Dehnels_Seasonal_RNAseq2/data/Liver/WGCNA/liv_geneInfo.csv")
+#combine
+all_groups <- bind_rows(
+  group1,
+  group4,
+  group6,
+  group8
+)
+all_groups <- group8
+
+# Join with module information
+combined_with_module <- all_groups %>%
+  left_join(liv_geneInfo, by = c("genes" = "Genes")) %>%
+  filter(!is.na(moduleColor))
+combined_with_module <- all_groups %>%
+  left_join(liv_geneInfo, by = c("genes" = "Genes"))
+combined_with_module <- combined_with_module %>%
+  filter(!is.na(moduleColor))
+prop_df <- combined_with_module %>%
+  group_by(cluster, moduleColor) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(cluster) %>%
+  mutate(proportion = count / sum(count))
+# Step 2: Plot
+global_order <- prop_df %>%
+  arrange(desc(proportion)) %>%
+  pull(moduleColor) %>%
+  unique()
+global_order <- rev(global_order)
+#reorder
+prop_df <- prop_df %>%
+  mutate(moduleColor = factor(moduleColor, levels = global_order))
+
+#plot with stacking
+library(forcats)
+clus8_stack<-ggplot(prop_df, aes(x = factor(cluster), y = proportion, fill = moduleColor)) +
+  geom_bar(stat = "identity", position = "stack", color = "black") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_identity(guide = "legend") +
+  labs(
+    x = "Cluster",
+    y = "Proportion of Genes",
+    fill = "Module Color"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.title = element_text(face = "bold"),
+    legend.position = "none"
+  )
+ggsave("~/Supplements/Figures/Supplementary_Figure_Transcriptome_clus8_stack.pdf", plot = clus8_stack, width = 2, height = 5)
+#check
+prop_df %>%
+  filter(moduleColor == "red")
+
+
+####
+liv34resSig_df <- as.data.frame(liv34resSig) %>%
+  mutate(GeneName = rownames(.))
+
+# Join with module colors
+sig_genes_with_module <- liv34resSig_df %>%
+  left_join(liv_geneInfo, by = c("GeneName" = "Genes"))
+
+# Count how many genes fall in each module
+deg_per_module <- sig_genes_with_module %>%
+  group_by(moduleColor) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+deg_per_module
+
+########
+
+#revision hamster comparison
+library(readxl)
+hiber_exp <- read_excel("~/data/Liver/DifferentialExp/Hibernation/hiber_exp.xlsx")
+hiber_exp <- hiber_exp %>%
+  mutate(GeneName = toupper(GeneName))
+hiber_up<-hiber_exp %>%
+  filter(FDR < 0.05, logFC < 0) %>%
+  pull(GeneName)
+hiber_down<-hiber_exp %>%
+  filter(FDR < 0.05, logFC > 0) %>%
+  pull(GeneName)
+#Highlight similar significance
+liv13_tbl <- as_tibble(liv13res, rownames = "GeneName")
+# Filter, join, and select all in one pipe
+hiber_dehnel_df <- liv13_tbl %>%
+  filter(padj < 0.05) %>%
+  inner_join(hiber_exp %>% filter(FDR < 0.05), by = "GeneName") %>%
+  select(GeneName, padj, log2FoldChange, FDR, logFC) %>%
+  rename(
+    Dehnel_padj = padj,
+    Dehnel_LFC = log2FoldChange,
+    Hibernation_FDR = FDR,
+    Hibernation_LFC = logFC
+  ) %>%
+  # Multiply Hibernation_LFC by -1
+  mutate(Hibernation_LFC = -1 * Hibernation_LFC) %>%
+  # Create a group variable based on sign of LFCs
+  mutate(
+    LFC_sign_group = case_when(
+      Dehnel_LFC > 0 & Hibernation_LFC > 0 ~ "++",
+      Dehnel_LFC > 0 & Hibernation_LFC < 0 ~ "+-",
+      Dehnel_LFC < 0 & Hibernation_LFC > 0 ~ "-+",
+      Dehnel_LFC < 0 & Hibernation_LFC < 0 ~ "--",
+      TRUE ~ "other"
+    )
+  ) %>%
+  arrange(LFC_sign_group, Dehnel_padj) %>%
+  select(-LFC_sign_group)
+hiber_dehnel_df
+write.table(hiber_dehnel_df, file='~/Supplements/Tables/Supplemental_Table_6', quote=FALSE, sep='\t')
+#
+intersect(rownames(liv13up), hiber_up)
+intersect(rownames(liv13down), hiber_up)
+intersect(rownames(liv13up), hiber_down)
+intersect(rownames(liv13down), hiber_down)
+overlap_hiber <- list(HibernationUp = hiber_up, HibernationDown=hiber_down, DehnelUp=rownames(liv13up),DehnelDown=rownames(liv13down))
+upset_overlap_hiber <- fromList(overlap_hiber)
+hiber_upset <- upset(upset_overlap_hiber,nsets = 4,order.by = "freq")
+ggsave("~/data/Liver/DifferentialExp/Hibernation/upset_hibernation.png", hiber_upset, width = 10, height = 4, dpi =300,)
+#fgsea
+hiberres <- hiber_exp %>% 
+  dplyr::select(GeneName, logFC) %>% 
+  na.omit() %>% 
+  distinct() %>% 
+  mutate(logFC = -1 * logFC) %>% 
+  group_by(GeneName) %>% 
+  summarize(stat = mean(logFC))
+hiberranks <- deframe(hiberres)
+fgsea_hiber <- fgsea(pathways=gmtPathways("~/data/refs/c2.cp.kegg.v2023.1.Hs.symbols.gmt.txt"), hiberranks) %>% 
+  as_tibble() %>% 
+  arrange(padj)
+fgsea_hiberTidy <- fgsea_hiber %>%
+  as_tibble() %>%
+  arrange(desc(NES))
+# Show in a nice table:
+fgsea_hiberTidy %>% 
+  dplyr::select(-leadingEdge, -ES) %>% 
+  arrange(padj) %>% 
+  DT::datatable()
+plot_fgsea_hiber <-ggplot(subset(fgsea_hiberTidy,padj<0.05), aes(reorder(pathway, NES), NES)) +
+  geom_col(aes(fill=NES>0)) +
+  coord_flip() +
+  labs(x="KEGGPathwayHibernation", y="Normalized Enrichment Score") + 
+  scale_fill_manual(values =  c("red", "blue"))+
+  theme_bw()
+ggsave("~/data/Liver/DifferentialExp/Hibernation/fsgea_hibernation.png", plot_fgsea_hiber,width = 10, height = 3, dpi =300,)
+fgsea_hiberTidy2 <- apply(fgsea_hiberTidy,2,as.character)
+write.table(fgsea_hiberTidy2, file='~/data/Liver/DifferentialExp/Hibernation/fsgea_hibernation.tsv', quote=FALSE, sep='\t')
+
+
+
+
+
+#Correlation between Gene expression and protein raw
+match_trans<-DESeq2::counts(dds_liv_all, normalized=TRUE)
+matched_LFQ <- read_table("~/data/Liver/Proteomics/Compare2RNA/matched_LFQ_results.txt")
+str(matched_LFQ)
+
+#Prepare normalized RNA data
+rna_df <- as.data.frame(match_trans) %>%
+  rownames_to_column(var = "Gene") %>%
+  pivot_longer(-Gene, names_to = "Sample", values_to = "RNA")
+
+#Prepare protein data
+prot_df <- matched_LFQ %>%
+  pivot_longer(cols = starts_with("Stg"), names_to = "Sample", values_to = "Protein") %>%
+  dplyr::select(Gene, Sample, Protein)
+
+#Join RNA and Protein data by Gene + Sample
+merged_df <- inner_join(rna_df, prot_df, by = c("Gene", "Sample"))
+merged_df <- merged_df %>%
+  mutate(logRNA = log10(RNA + 1),
+         logProtein = log10(Protein))
+#Calculate Pearson correlation
+cor_results <- merged_df %>%
+  group_by(Gene) %>%
+  summarise(correlation = cor(logRNA, logProtein, use = "complete.obs", method = "pearson"),
+            .groups = "drop")
+#sort by correlation
+cor_results <- cor_results %>%
+  arrange(desc(correlation))
+
+#total them
+sum(cor_results$correlation > 0, na.rm = TRUE)
+sum(cor_results$correlation < 0, na.rm = TRUE)
+
+#plot
+#hist
+rna_prot_hist<-ggplot(cor_results, aes(x = correlation, fill = correlation > 0)) +
+  geom_histogram(binwidth = 0.05, color = "white") +
+  scale_fill_manual(values = c("FALSE" = "red", "TRUE" = "blue"), 
+                    labels = c("Negative", "Positive"),
+                    name = "Correlation Sign") +
+  theme_bw() +
+  labs( x = "Pearson r", y = "Gene Count")
+ggsave("~/data/Liver/Proteomics/Compare2RNA/rna_prot_hist.png", rna_prot_hist,width = 5, height = 4, dpi =300,)
+
+#scatter
+summary(lm(logProtein ~ logRNA, data = merged_df))
+rna_prot_scat<-ggplot(merged_df, aes(x = logRNA, y = logProtein)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  labs(x = "log10 Normalized RNA Counts", y = "log10 LFQ Protein Abundance"
+  ) +
+  theme_bw(base_size = 14)
+ggsave("~/data/Liver/Proteomics/Compare2RNA/rna_prot_scat.png", rna_prot_scat,width = 5, height = 4, dpi =300,)
