@@ -1,12 +1,11 @@
 # Dehnels_Seasonal_RNAseq
-Scripts and code to reproduce RNAseq analysis for looking at changes in expression through Dehnel's phenomenon; specifically in the cortex, hippocampus, and liver.
+Scripts and code to reproduce RNAseq analysis for looking at changes in expression through Dehnel's phenomenon; specifically in the liver.
 
 ###Goals and strategy
 
 The objective of this project is to evaluate how expression changes 
 throughout the size plasticity of Dehnel’s phenomenon in *Sorex araneus*. 
-We will be analyzing three different tissue types; the liver, hippocampus, 
-and cortex. These regions will help to understand both size and metabolic 
+We will be analyzing the liver. These regions will help to understand both size and metabolic 
 changes underpinning Dehnel’s phenomenon. First, we will have to access 
 the quality of our RNA-seq data, filter low quality reads and trim 
 adapters, map to the transcriptome and quantify abundance, followed by 
@@ -67,7 +66,7 @@ bash protein_db2.sh ~/data/Liver/Proteomics/SpringVsWinter/JN_prot_liver_WiSp.tx
 Each analysis was conducted using the R code below for each tissue type. For best results, run in RStudio, as each matrix and figure is not set to print out in a best attempt to not overwrite results. If this is your desired outcome, edit code to include saving.
  
 ```
-R Dehnel_Liver.R
+R Dehnel_Liver_v2.R
 ```
 
 ### MetaboAnalyst5.0
